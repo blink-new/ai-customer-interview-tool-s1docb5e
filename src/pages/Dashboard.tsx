@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { formatDistanceToNow } from 'date-fns'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -99,7 +100,6 @@ export default function Dashboard() {
   const [subscription, setSubscription] = useState<Subscription | null>(null)
   const [billingLoading, setBillingLoading] = useState(false)
 
-  // Fetch projects and insights when the component mounts and user is available
   useEffect(() => {
     if (!authLoading && !session) {
       navigate('/')
@@ -114,16 +114,50 @@ export default function Dashboard() {
       setInsightsError(null)
 
       try {
-        // Fetch projects (already exists)
         const { data: projectsData, error: projectsErr } = await supabase
           .from('projects')
           .select('*')
           .eq('user_id', user.id)
-          .order('created_at', { ascending: false })
+          .order('updated_at', { ascending: false }); // Order by updated_at for more relevant last activity
         
         if (projectsErr) throw projectsErr;
-        const fetchedProjects = projectsData.map(p => ({ ...p, responses_count: 0, last_activity_display: 'N/A' })) || [];
-        setProjects(fetchedProjects);
+
+        let fetchedProjectsWithCounts: InterviewProject[] = [];
+        if (projectsData) {
+          fetchedProjectsWithCounts = await Promise.all(
+            projectsData.map(async (p) => {
+              const { count, error: countError } = await supabase
+                .from('interviews')
+                .select('id', { count: 'exact', head: true })
+                .eq('project_id', p.id)
+                .eq('status', 'completed');
+
+              // Fetch last activity (latest interview completion or project update)
+              let lastActivity = p.updated_at ? new Date(p.updated_at) : new Date(p.created_at || 0);
+              const { data: lastInterview, error: lastInterviewError } = await supabase
+                .from('interviews')
+                .select('completed_at, created_at')
+                .eq('project_id', p.id)
+                .order('created_at', { ascending: false })
+                .limit(1)
+                .single();
+
+              if (!lastInterviewError && lastInterview) {
+                const lastInterviewDate = new Date(lastInterview.completed_at || lastInterview.created_at || 0);
+                if (lastInterviewDate > lastActivity) {
+                  lastActivity = lastInterviewDate;
+                }
+              }
+              
+              return {
+                ...p,
+                responses_count: countError ? 0 : count || 0,
+                last_activity_display: lastActivity ? formatDistanceToNow(lastActivity, { addSuffix: true }) : 'N/A'
+              };
+            })
+          );
+        }
+        setProjects(fetchedProjectsWithCounts);
 
         // Fetch subscription status
         const { data: subscriptionData, error: subscriptionErr } = await supabase

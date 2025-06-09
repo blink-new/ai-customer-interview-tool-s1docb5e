@@ -22,15 +22,18 @@ serve(async (req) => {
   }
 
   try {
+    console.log('Portal function received request')
     const { userId } = await req.json()
 
     if (!userId) {
+      console.error('Missing userId in request body')
       return new Response(JSON.stringify({ error: "Missing required field: userId" }), {
         status: 400,
         headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
       })
     }
 
+    console.log('Fetching subscription for user:', userId)
     // Get the user's subscription to find their Stripe customer ID
     const { data: subscription, error: subError } = await supabase
       .from('subscriptions')
@@ -39,20 +42,24 @@ serve(async (req) => {
       .single()
 
     if (subError || !subscription?.stripe_customer_id) {
+      console.warn('No active subscription or customer ID found for user:', userId, subError)
       return new Response(JSON.stringify({ error: "No active subscription found" }), {
         status: 404,
         headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
       })
     }
 
+    console.log('Found customer ID:', subscription.stripe_customer_id)
     // Get the origin for return URL
     const origin = req.headers.get("origin") || "https://ai-customer-interview-tool-s1docb5e.live.blink.new"
 
+    console.log('Creating Stripe billing portal session...')
     const session = await stripe.billingPortal.sessions.create({
       customer: subscription.stripe_customer_id,
       return_url: `${origin}/dashboard`,
     })
 
+    console.log('Stripe portal session created, redirecting to:', session.url)
     return new Response(JSON.stringify({ url: session.url }), {
       headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
     })
