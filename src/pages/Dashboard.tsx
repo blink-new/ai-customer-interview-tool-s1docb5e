@@ -669,12 +669,14 @@ export default function Dashboard() {
                           <AlertTriangle className="w-5 h-5 text-red-500 flex-shrink-0" /> : 
                           <Lightbulb className="w-5 h-5 text-yellow-500 flex-shrink-0" />
                         }
-                        <CardTitle className="text-lg truncate" title={insight.summary_text}>{insight.summary_text}</CardTitle>
+                        <div className="flex-1 min-w-0 max-w-lg">
+                          <CardTitle className="text-lg">{insight.summary_text}</CardTitle>
+                          <CardDescription>
+                            From project: <span className="font-medium text-blue-600">{insight.project_title}</span>
+                            {insight.created_at && ` • ${new Date(insight.created_at).toLocaleDateString()}`}
+                          </CardDescription>
+                        </div>
                       </div>
-                      <CardDescription>
-                        From project: <span className="font-medium text-blue-600">{insight.project_title}</span>
-                        {insight.created_at && ` • ${new Date(insight.created_at).toLocaleDateString()}`}
-                      </CardDescription>
                     </CardHeader>
                     {/* Optionally, add a CardContent here to show more details or a link to the full analytics */}
                   </Card>
